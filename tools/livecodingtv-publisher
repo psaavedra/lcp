@@ -1,0 +1,145 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+#
+# Maintainer: Pablo Saavedra
+# Contact: saavedra.pablo@gmail.com
+
+import os
+import sys
+import signal
+import subprocess
+import argparse
+import logging
+
+try:
+    reload(sys)
+    sys.setdefaultencoding('utf-8') # Forcing UTF-8 in the enviroment:
+    # http://stackoverflow.com/questions/3828723/why-we-need-sys-setdefaultencodingutf-8-in-a-py-scrip
+except Exception:
+    pass
+
+try:
+  try:
+    import ConfigParser
+  except ImportError:
+    import confiparser.ConfigParser # Compatibility with Python3
+except Exception:
+    pass
+
+
+## GLOBAL VARS #################################################################
+p = None # The avconv subprocess
+
+conffile = ".livecoding-publisher.cfg"
+logfile = "/dev/stdout"
+loglevel = 20
+
+DEV_NULL='/dev/null'
+
+EXIT_FLAG = False
+
+STREAMING_PARAMS={}
+STREAMING_PARAMS["streaming_url"]="rtmp://eumedia1.livecoding.tv:1935/livecodingtv/username?t=XXXXXXXX"
+STREAMING_PARAMS["webcam_resolution"]="320x240"
+STREAMING_PARAMS["webcam_device"]="/dev/video0"
+STREAMING_PARAMS["screen_resolution"]="1366x768"
+STREAMING_PARAMS["screen_fps"]="15"
+STREAMING_PARAMS["screen_device"]=":0.0+0,0"
+STREAMING_PARAMS["webcam_position"]="main_w-overlay_w:main_h-overlay_h"
+# Lower Right: "main_w-overlay_w:main_h-overlay_h"
+# Lower Left:  "0:main_h-overlay_h"
+# Top Right:   "main_w-overlay_w:0"
+# Top Left:    "0:0"
+# Center:      "main_w/2-overlay_w/2:main_h/2-overlay_h/2"
+
+STREAMING_PARAMS["audio_channels"]="1"
+STREAMING_PARAMS["audio_bitrate"]="128k"
+STREAMING_PARAMS["video_preset"]="ultrafast"
+STREAMING_PARAMS["video_bitrate"]="1000k"
+STREAMING_PARAMS["video_gop"]="45"
+
+CMD =  "avconv -s %(webcam_resolution)s -f video4linux2 -i %(webcam_device)s "
+CMD += "-f x11grab -r %(screen_fps)s -s %(screen_resolution)s -i %(screen_device)s "
+CMD += "-filter_complex [1:0][0:0]overlay=%(webcam_position)s "
+CMD += "-f alsa -channels %(audio_channels)s -i pulse "
+CMD += "-vcodec libx264 -pre:0 %(video_preset)s -g %(video_gop)s -vb %(video_bitrate)s "
+CMD += "-acodec aac -ar 48000 -ab %(audio_bitrate)s -strict experimental "
+CMD += "-f flv %(streaming_url)s"
+
+# Functions ####################################################################
+
+def signal_int_handler(signal, frame):
+    global p
+    global EXIT_FLAG
+    print ("Ctrl-c received! Sending kill avconv...")
+    try:
+        p.kill()
+    except Exception:
+        pass
+    EXIT_FLAG = True
+signal.signal(signal.SIGINT, signal_int_handler)
+
+def setup(conffile):
+    global STREAMING_PARAMS
+
+    logger.debug("Default encoding: %s" % sys.getdefaultencoding())
+
+    cfg = ConfigParser.ConfigParser()
+    cfg.read(conffile)
+    try:
+        for o in cfg.options("streaming"):
+            try:
+                value = cfg.get("streaming",o)
+                STREAMING_PARAMS[o] = value
+                logger.debug("Setting %s to %s" % (o,value))
+            except Exception as e:
+                logger.error("Error parsing %s - %s: %s" % ("global",o,e))
+    except Exception as e:
+        logger.error("Raised exception: %s" % e)
+
+
+## command line options parser #################################################
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--conffile", dest="conffile", default=conffile,
+                  help="Conffile (default: %s)" % conffile)
+parser.add_argument("-l", "--logfile",
+        dest="logfile", help="Log file (default: %s)" % logfile,
+        default=logfile)
+parser.add_argument("--loglevel",
+        dest="loglevel", help="Log level (default: %s)" % loglevel,
+        default=loglevel)
+args = parser.parse_args()
+
+logfile = args.logfile
+loglevel = args.loglevel
+conffile = args.conffile
+
+
+## logging #####################################################################
+hdlr = logging.FileHandler(logfile)
+hdlr.setFormatter(logging.Formatter('%(levelname)s %(asctime)s %(message)s'))
+logger = logging.getLogger('livecoding-publisher')
+logger.addHandler(hdlr)
+logger.setLevel(int(loglevel))
+
+# setting up ###################################################################
+setup(conffile)
+
+
+## main ########################################################################
+if __name__ == '__main__':
+
+    workoutput_log_file = open(DEV_NULL, "a")
+    cmd = CMD % STREAMING_PARAMS
+    logger.debug("cmd: %s" % cmd)
+    while not EXIT_FLAG: # If avconv deas for some reason we launch again in loop
+        p = subprocess.Popen(cmd.split(), shell=False, bufsize=1024,
+                stdin=subprocess.PIPE, stdout=workoutput_log_file,
+                stderr=workoutput_log_file, close_fds=True)
+        logger.info("avconv launched")
+        p.wait()
+        logger.info("avconv ended")
+
+sys.exit(0)
+
+
