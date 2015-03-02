@@ -18,7 +18,7 @@ except Exception:
 setup(
     name = 'livecodingtv-publisher',
     version = version,
-    description = 'livecodingtv-publisher',
+    description = 'A livecodingtv streaming tool',
     author = 'Pablo Saavedra',
     author_email = 'saavedra.pablo@gmail.com',
     url = 'http://github.com/psaavedra/livecodingtv-publisher',
