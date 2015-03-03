@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 #
+# Author: Pablo Saavedra
 # Maintainer: Pablo Saavedra
-# Contact: saavedra.pablo@gmail.com
+# Contact: saavedra.pablo at gmail.com
+
 
 import os
 import sys
@@ -28,7 +30,7 @@ except Exception:
 
 
 ## GLOBAL VARS #################################################################
-p = None # The avconv subprocess
+p_avconv = None # The avconv subprocess
 
 conffile = ".livecoding-publisher.cfg"
 logfile = "/dev/stdout"
@@ -57,27 +59,32 @@ STREAMING_PARAMS["audio_bitrate"]="128k"
 STREAMING_PARAMS["video_preset"]="ultrafast"
 STREAMING_PARAMS["video_bitrate"]="1000k"
 STREAMING_PARAMS["video_gop"]="45"
+STREAMING_PARAMS["video_maxbitrate"]="1200k"
+STREAMING_PARAMS["video_bufsize"]="10000k"
 
 CMD =  "avconv -s %(webcam_resolution)s -f video4linux2 -i %(webcam_device)s "
 CMD += "-f x11grab -r %(screen_fps)s -s %(screen_resolution)s -i %(screen_device)s "
 CMD += "-filter_complex [1:0][0:0]overlay=%(webcam_position)s "
 CMD += "-f alsa -channels %(audio_channels)s -i pulse "
 CMD += "-vcodec libx264 -pre:0 %(video_preset)s -g %(video_gop)s -vb %(video_bitrate)s "
+CMD += "-maxrate %(video_maxbitrate)s -bufsize %(video_bufsize)s "
 CMD += "-acodec aac -ar 48000 -ab %(audio_bitrate)s -strict experimental "
 CMD += "-f flv %(streaming_url)s"
+
 
 # Functions ####################################################################
 
 def signal_int_handler(signal, frame):
-    global p
+    global p_avconv
     global EXIT_FLAG
     print ("Ctrl-c received! Sending kill avconv...")
     try:
-        p.kill()
+        p_avconv.kill()
     except Exception:
         pass
     EXIT_FLAG = True
 signal.signal(signal.SIGINT, signal_int_handler)
+
 
 def setup(conffile):
     global STREAMING_PARAMS
@@ -122,6 +129,7 @@ logger = logging.getLogger('livecoding-publisher')
 logger.addHandler(hdlr)
 logger.setLevel(int(loglevel))
 
+
 # setting up ###################################################################
 setup(conffile)
 
@@ -132,14 +140,13 @@ if __name__ == '__main__':
     workoutput_log_file = open(DEV_NULL, "a")
     cmd = CMD % STREAMING_PARAMS
     logger.debug("cmd: %s" % cmd)
-    while not EXIT_FLAG: # If avconv deas for some reason we launch again in loop
-        p = subprocess.Popen(cmd.split(), shell=False, bufsize=1024,
+    while not EXIT_FLAG: # If avconv deads for some reason we launch again in loop
+        p_avconv = subprocess.Popen(cmd.split(), shell=False, bufsize=1024,
                 stdin=subprocess.PIPE, stdout=workoutput_log_file,
                 stderr=workoutput_log_file, close_fds=True)
         logger.info("avconv launched")
-        p.wait()
+        p_avconv.wait()
         logger.info("avconv ended")
 
 sys.exit(0)
-
 
