@@ -3,7 +3,7 @@ streaming_url=rtmp://eumedia1.livecoding.tv:1935/livecodingtv/username?t=XXXXXXX
 webcam_resolution=320x240
 webcam_device=/dev/video0
 screen_resolution=1366x768
-screen_fps=10
+screen_fps=15
 screen_device=:0.0+0,0
 webcam_position=main_w-overlay_w:main_h-overlay_h
 # Lower Right: "main_w-overlay_w:main_h-overlay_h"
@@ -12,9 +12,11 @@ webcam_position=main_w-overlay_w:main_h-overlay_h
 # Top Left:    "0:0"
 # Center:      "main_w/2-overlay_w/2:main_h/2-overlay_h/2"
 audio_channels=1
-audio_bitrate=128k
+audio_bitrate=64k
 video_preset=ultrafast
 #            superfast
 video_bitrate=1000k
-video_gop=30
+video_gop=45
+video_maxbitrate=1500k
+video_bufsize=1500k
 
